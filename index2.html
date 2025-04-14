@@ -1,0 +1,563 @@
+<html>
+<head>
+    <base href>
+    <meta name="referrer" content="no-referrer">
+    <title>Reproductor de Video con HLS</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background: #ecf0f1;
+            --text-color: #2c3e50;
+            --card-bg: rgba(255, 255, 255, 0.98);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 30px;
+            border-radius: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
+        }
+
+        .titulo {
+            grid-column: 1 / -1;
+            font-size: 3rem;
+            font-weight: 800;
+            text-align: center;
+            color: var(--primary-color);
+            margin: 0 0 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+        }
+
+        .titulo::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 5px;
+            background: linear-gradient(90deg, var(--secondary-color), var(--accent-color));
+            border-radius: 5px;
+        }
+
+        .reproductor-container {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .reproductor {
+            width: 100%;
+            height: 600px;
+            border-radius: 20px;
+            background: #000;
+            transition: all 0.3s ease;
+        }
+
+        .reproductor:hover {
+            transform: scale(1.01);
+        }
+
+        .lista-reproduccion {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background: rgba(44, 62, 80, 0.05);
+            border-radius: 15px;
+            overflow: hidden;
+            height: 600px;
+            overflow-y: auto;
+        }
+
+        .lista-reproduccion::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .lista-reproduccion::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+
+        .lista-reproduccion::-webkit-scrollbar-thumb {
+            background: var(--secondary-color);
+            border-radius: 4px;
+        }
+
+        .lista-reproduccion li {
+            padding: 15px 20px;
+            margin: 5px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .lista-reproduccion li::before {
+            content: '▶';
+            margin-right: 10px;
+            color: var(--secondary-color);
+            font-size: 0.8em;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.3s ease;
+        }
+
+        .lista-reproduccion li:hover {
+            background: rgba(52, 152, 219, 0.1);
+            transform: translateX(5px);
+        }
+
+        .lista-reproduccion li:hover::before {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .lista-reproduccion .seleccionado {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .lista-reproduccion .seleccionado::before {
+            opacity: 1;
+            transform: translateX(0);
+            color: white;
+        }
+
+        .fullscreen-btn {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: -5px;
+        }
+
+        .fullscreen-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .fullscreen-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .fullscreen-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        .stream-status {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .stream-status.live::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #2ecc71;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        .stream-status.error::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #e74c3c;
+            border-radius: 50%;
+        }
+
+        .stream-status.waiting::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #f1c40f;
+            border-radius: 50%;
+        }
+
+        @keyframes pulse {
+            0% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% { 
+                transform: scale(1.5);
+                opacity: 0.7;
+            }
+            100% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .footer {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 20px;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            border-top: 2px solid rgba(44, 62, 80, 0.1);
+            margin-top: 20px;
+        }
+
+        @media only screen and (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+
+            .reproductor {
+                height: 400px;
+            }
+
+            .lista-reproduccion {
+                height: 300px;
+            }
+        }
+
+        @media only screen and (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+                margin: 10px;
+            }
+
+            .titulo {
+                font-size: 2rem;
+            }
+
+            .reproductor {
+                height: 300px;
+            }
+        }
+
+        /* Añadir efectos de glassmorphism */
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        /* Añadir animación de pulso para el reproductor activo */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(52, 152, 219, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0); }
+        }
+
+        .reproductor:playing {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="titulo">Deportes en vivo</h1>
+        <div class="reproductor-container">
+            <video id="video-player" class="reproductor" controls></video>
+            <div id="stream-status" class="stream-status">Seleccione un canal</div>
+            <button class="fullscreen-btn" onclick="toggleFullscreen()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+                Pantalla Completa
+            </button>
+        </div>
+        <h2 class="subtitulo">Lista de reproducción</h2>
+        <ul class="lista-reproduccion">
+            <li data-url-hls="https://dokko1new.newkso.ru/dokko1/premium392/mono.m3u8">Win+</li>
+            <li data-url-hls="https://ag9wzq.fubohd.com/winsportsplus/mono.m3u8?token=ab2d76d05d391eb1a217c2bd349c9d773e9515f2-8a-1742965397-1742929397">ESPN</li>
+            <li data-url-hls="https://c2f2zq.fubohd.com/espn2/mono.m3u8?token=32635a6ec3c54f44950f37bc4536ece6a13ba1f3-fa-1741079787-1741043787">ESPN 2</li>
+            <li data-url-hls="https://jf3.naqsheala.com:999/hls/directsp2.m3u8?md5=afIeWEOoH1TLPXYiYy3Msg&expires=1743552717">ESPN 3</li>
+            <li data-url-hls="https://manifest-gcp-us-east4-vop1.fastly.mux.com/sIlHR007rQFFWYB64HrcQs4h1D01TzjYEGMQovH746QtSR8lGcdCyHH00WSr5ZT4gpgjmEzTTyAFZZI6o7NtNEMiezd44jWRNLzeyJxlDxnga4/rendition.m3u8?cdn=fastly&exclude_pdt=false&expires=1744154220&live=1&rid=blzHm5iVslmA7w1ZFD6XD5e1HKn3etEEXxwy00FnbUzw&skid=default&signature=NjdmNWFlNmNfMWEwMGQwNzlmMWRjY2U5NGExNTYwZWZhYzM4NzU2ZmM0ZTVkZWMyMGM5N2UyOTI0NzA4MTlhYjJmNThlNmJlYw%3D%3D&vsid=vx3krgDuCJizRrkfcj00CS00Q0192wpMV01yrrW01MFaG36GXF01iJzCMuvJbSeWAT5eyFuBdyfg6K32k1301007Z5mms1b6pHmJ9VPiKyzWhEYm8S9fYsaZkX6S2L301J00hFzRVA&CMCD=cid%3D%22sCgrwC01SM00zaYdB00EDw8xiIy15OXdD2MCN00NbwMtoks%22%2Csid%3D%22ffd82ff6-7fd1-4dd9-8d28-9249df1651bb%22">Dsport</li>
+            <li data-url-hls="https://jf3.naqsheala.com:999/hls/directsp2.m3u8?md5=afIeWEOoH1TLPXYiYy3Msg&expires=1743552717">Solo eventos</li>
+        </ul>
+        <div class="footer">
+            Derechos reservados a sus respectivos creadores
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.3.1/dist/hls.min.js"></script>
+    <script>
+        const videoPlayer = document.getElementById('video-player');
+        const listaReproduccion = document.querySelector('.lista-reproduccion');
+        const streamStatus = document.getElementById('stream-status');
+
+        let hls;
+        let canalSeleccionado = null;
+
+        // Configure HLS.js for optimal performance
+        const hlsConfig = {
+            maxBufferLength: 30,          // Reduce buffer length to save bandwidth
+            maxMaxBufferLength: 60,       // Maximum buffer size
+            maxBufferSize: 2 * 1000 * 1000, // 2MB maximum buffer size
+            maxBufferHole: 0.5,          // Reduce hole jump threshold
+            lowLatencyMode: true,        // Enable low latency mode
+            backBufferLength: 30,        // Reduce back buffer length
+            enableWorker: true,          // Enable web worker for better performance
+            startLevel: -1,              // Let HLS.js choose the optimal quality
+            initialLiveManifestSize: 1,  // Start playback faster
+            abrEwmaDefaultEstimate: 500000, // Start with lower bandwidth estimate
+            // Aggressive bandwidth optimization
+            abrBandWidthFactor: 0.8,     
+            abrBandWidthUpFactor: 0.7,
+            abrMaxWithRealBitrate: true,
+            liveSyncDurationCount: 3     // Reduce live sync window
+        };
+
+        listaReproduccion.addEventListener('click', (e) => {
+            if (e.target.tagName === 'LI') {
+                e.preventDefault();
+                const urlHls = e.target.getAttribute('data-url-hls');
+
+                if (urlHls) {
+                    if (canalSeleccionado) {
+                        canalSeleccionado.classList.remove('seleccionado');
+                    }
+
+                    e.target.classList.add('seleccionado');
+                    canalSeleccionado = e.target;
+
+                    if (hls) {
+                        hls.destroy();
+                    }
+
+                    streamStatus.className = 'stream-status waiting';
+                    streamStatus.textContent = 'Conectando...';
+
+                    hls = new Hls(hlsConfig);
+                    hls.loadSource(urlHls);
+                    hls.attachMedia(videoPlayer);
+
+                    // Add quality level selection
+                    hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                        const availableLevels = hls.levels;
+                        // Find a quality level that's around 2Mbps
+                        const targetBandwidth = 2000000; // 2 Mbps
+                        let bestLevel = 0;
+                        
+                        for (let i = 0; i < availableLevels.length; i++) {
+                            if (availableLevels[i].bitrate <= targetBandwidth) {
+                                bestLevel = i;
+                            }
+                        }
+                        
+                        hls.currentLevel = bestLevel; // Force initial quality level
+                    });
+
+                    hls.on(Hls.Events.MANIFEST_LOADED, () => {
+                        streamStatus.className = 'stream-status live';
+                        streamStatus.textContent = 'EN VIVO';
+                        videoPlayer.play();
+                    });
+
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) {
+                            streamStatus.className = 'stream-status error';
+                            streamStatus.textContent = 'Error: Canal no disponible';
+                            console.error('Error de stream:', data.type, data.details);
+                        }
+                    });
+                }
+            }
+        });
+
+        // Función para alternar pantalla completa
+        function toggleFullscreen() {
+            const player = document.getElementById('video-player');
+            
+            if (!document.fullscreenElement) {
+                if (player.requestFullscreen) {
+                    player.requestFullscreen();
+                } else if (player.webkitRequestFullscreen) {
+                    player.webkitRequestFullscreen();
+                } else if (player.msRequestFullscreen) {
+                    player.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+    </script>
+    <!-- Add Supabase Script -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Add VideoCache Script -->
+    <script src="videocache.js"></script>
+
+    <!-- Check authentication before showing content -->
+    <script>
+        const SUPABASE_URL = 'https://udaloepzgkgjvbyzkhmy.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYWxvZXB6Z2tnanZieXpraG15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA0NDk2NjYsImV4cCI6MjA1NjAyNTY2Nn0.VcY3iVmYTfb5V0wYoGY3HPyNHKwcrTjA55Lf_lE_NL8';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Check authentication status immediately
+        (async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+            }
+        })();
+
+        // Deshabilitar clic derecho
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
+        // Deshabilitar clic izquierdo en la página
+        document.addEventListener('mousedown', function(e) {
+            if (e.button === 0 && e.target.tagName !== 'BUTTON' && !e.target.closest('.playlist-item') && e.target.tagName !== 'VIDEO') {
+                e.preventDefault();
+            }
+        });
+
+        function logMessage(message, isSuccess) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${isSuccess ? 'log-success' : 'log-error'}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            botLog.appendChild(entry);
+            botLog.scrollTop = botLog.scrollHeight;
+        }
+        function setupDevToolsDetection() {
+            // Método 1: Detectar cambios de tamaño que pueden indicar apertura de devtools
+            let widthThreshold = window.outerWidth - window.innerWidth > 160;
+            let heightThreshold = window.outerHeight - window.innerHeight > 160;
+            let initialDevToolsOpen = widthThreshold || heightThreshold;
+            
+            // Método 2: Usar console.clear para detectar sobreescritura
+            let consoleCheck = false;
+            const originalConsole = {
+                clear: console.clear,
+                log: console.log,
+                info: console.info,
+                warn: console.warn,
+                error: console.error
+            };
+            
+            // Insertar debugger statement periódicamente cuando se detectan herramientas de desarrollo
+            setInterval(function() {
+                // Revisar si las dimensiones indican que devtools está abierto
+                widthThreshold = window.outerWidth - window.innerWidth > 160;
+                heightThreshold = window.outerHeight - window.innerHeight > 160;
+                let devToolsOpen = widthThreshold || heightThreshold;
+                
+                // Método 3: Revisar si console.log fue modificado
+                if (console.log.toString().indexOf('native code') === -1) {
+                    console = originalConsole; // Restaurar
+                    devToolsOpen = true;
+                    consoleCheck = true;
+                }
+                
+                // Si devtools está abierto, interrumpir con debugger
+                if (devToolsOpen || consoleCheck) {
+                    // Insertar múltiples statements de debugger en diferentes maneras para dificultar su evasión
+                    (function() {
+                        try {
+                            // Primer debugger ofuscado
+                            var x = document.createElement('div');
+                            x.innerHTML = '';
+                            x.id = 'z' + Math.random().toString(36).substring(7);
+                            x.style.display = 'none';
+                            document.body.appendChild(x);
+                            
+                            // Insertar el debugger de manera difícil de detectar
+                            setTimeout(function() {
+                                document.getElementById(x.id).remove();
+                                if (devToolsOpen || consoleCheck) {
+                                    debugger; // Primera pausa
+                                    setTimeout(function() {
+                                        debugger; // Segunda pausa, en caso de que la primera sea evitada
+                                    }, 100);
+                                }
+                            }, 100);
+                        } catch (e) {}
+                    })();
+                }
+            }, 1000);
+            
+            // Otro método: detectar Firebug o devtools a través de métodos específicos
+            setInterval(function() {
+                const devtoolsOpen = /./;
+                devtoolsOpen.toString = function() {
+                    consoleCheck = true;
+                    return '';
+                };
+                console.log('%c', devtoolsOpen);
+                console.clear();
+            }, 2000);
+            
+            // Método 4: Detector basado en tiempos de ejecución
+            let start = performance.now();
+            debugger;
+            let end = performance.now();
+            
+            if (end - start > 100) { // Si toma más de 100ms, devtools probablemente está abierto
+                consoleCheck = true;
+            }
+        }
+
+        setupDevToolsDetection();
+    </script>
+</body>
+</html>

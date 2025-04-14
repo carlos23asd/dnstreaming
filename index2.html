@@ -508,11 +508,11 @@
 
         // Cross-browser fullscreen function
         function toggleFullscreen() {
-            const player = document.getElementById('video-player');
-            
-            if (window.tvCompat && window.tvCompat.toggleFullscreen) {
-                window.tvCompat.toggleFullscreen(player);
+            if (window.fullscreenUtils && window.fullscreenUtils.toggle) {
+                window.fullscreenUtils.toggle(document.getElementById('video-player'));
             } else {
+                const player = document.getElementById('video-player');
+                
                 if (!document.fullscreenElement &&
                     !document.mozFullScreenElement &&
                     !document.webkitFullscreenElement &&
@@ -525,6 +525,8 @@
                         player.mozRequestFullScreen();
                     } else if (player.webkitRequestFullscreen) {
                         player.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+                    } else if (player.webkitEnterFullscreen) {
+                        player.webkitEnterFullscreen();
                     }
                 } else {
                     if (document.exitFullscreen) {
@@ -546,6 +548,8 @@
     <script src="videocache.js"></script>
     <!-- Add TV Compatibility Script -->
     <script src="tv-compatibility.js"></script>
+    <!-- Add Fullscreen Utilities Script -->
+    <script src="fullscreen-utils.js"></script>
 
     <script>
         const SUPABASE_URL = 'https://udaloepzgkgjvbyzkhmy.supabase.co';

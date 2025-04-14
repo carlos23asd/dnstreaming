@@ -234,39 +234,12 @@ function navigateFocus(direction) {
     }
 }
 
-// Handle fullscreen changes for different browsers
 function toggleFullscreen(element) {
-    if (element) {
-        if (!document.fullscreenElement &&
-            !document.mozFullScreenElement &&
-            !document.webkitFullscreenElement &&
-            !document.msFullscreenElement) {
-            // Request fullscreen
-            if (element.requestFullscreen) {
-                element.requestFullscreen();
-            } else if (element.msRequestFullscreen) {
-                element.msRequestFullscreen();
-            } else if (element.mozRequestFullScreen) {
-                element.mozRequestFullScreen();
-            } else if (element.webkitRequestFullscreen) {
-                element.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-            }
-        } else {
-            // Exit fullscreen
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.msExitFullscreen) {
-                document.msExitFullscreen();
-            } else if (document.mozCancelFullScreen) {
-                document.mozCancelFullScreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            }
-        }
-    }
+    // Remove this function as it's being moved to fullscreen-utils.js
+    // This function has been moved to fullscreen-utils.js
 }
 
 // Export functions for global use
 window.tvCompat = {
-    toggleFullscreen: toggleFullscreen
+    detectTVDevice: detectTVDevice
 };

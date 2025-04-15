@@ -54,7 +54,26 @@
             outline: 4px solid var(--secondary-color);
             outline-offset: 2px;
         }
-
+        
+        /* Prevent popup requirements for TV browsers */
+        .tv-mode .lista-reproduccion li:focus,
+        .tv-mode .lista-reproduccion li:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+            z-index: 5;
+            transition: all 0.2s ease;
+        }
+        
+        /* Ensure video player has proper z-index when fullscreen on TVs */
+        .tv-mode .reproductor.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+        }
+        
         body {
             font-family: 'Poppins', Arial, sans-serif;
             margin: 0;
@@ -506,52 +525,125 @@
             }
         });
 
-        // Cross-browser fullscreen function
+        // Enhanced toggleFullscreen function that works without popups
         function toggleFullscreen() {
+            const player = document.getElementById('video-player');
+            
+            // First attempt to use fullscreenUtils if available
             if (window.fullscreenUtils && window.fullscreenUtils.toggle) {
-                window.fullscreenUtils.toggle(document.getElementById('video-player'));
-            } else {
-                const player = document.getElementById('video-player');
-                
-                if (!document.fullscreenElement &&
-                    !document.mozFullScreenElement &&
-                    !document.webkitFullscreenElement &&
-                    !document.msFullscreenElement) {
-                    if (player.requestFullscreen) {
-                        player.requestFullscreen();
-                    } else if (player.msRequestFullscreen) {
-                        player.msRequestFullscreen();
-                    } else if (player.mozRequestFullScreen) {
-                        player.mozRequestFullScreen();
-                    } else if (player.webkitRequestFullscreen) {
-                        player.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-                    } else if (player.webkitEnterFullscreen) {
-                        player.webkitEnterFullscreen();
+                window.fullscreenUtils.toggle(player);
+                return;
+            }
+            
+            // Check if we're in a TV environment
+            const isTV = document.documentElement.classList.contains('tv-mode');
+            
+            if (isTV) {
+                // For TVs, use a more compatible approach without requiring popups
+                if (!player.classList.contains('fullscreen')) {
+                    // Enter "fullscreen" with CSS
+                    player.classList.add('fullscreen');
+                    
+                    // Update fullscreen button
+                    const fullscreenBtn = document.querySelector('.fullscreen-btn');
+                    if (fullscreenBtn) {
+                        fullscreenBtn.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7"/>
+                            </svg> Salir Pantalla Completa`;
                     }
+                    
+                    // Add escape key listener for exiting
+                    document.addEventListener('keydown', exitFullscreenOnEscape);
                 } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    } else if (document.msExitFullscreen) {
-                        document.msExitFullscreen();
-                    } else if (document.mozCancelFullScreen) {
-                        document.mozCancelFullScreen();
-                    } else if (document.webkitExitFullscreen) {
-                        document.webkitExitFullscreen();
-                    }
+                    // Exit "fullscreen"
+                    exitCustomFullscreen();
+                }
+                return;
+            }
+            
+            // Standard fullscreen API approach for non-TV devices
+            if (!document.fullscreenElement &&
+                !document.mozFullScreenElement &&
+                !document.webkitFullscreenElement &&
+                !document.msFullscreenElement) {
+                if (player.requestFullscreen) {
+                    player.requestFullscreen();
+                } else if (player.msRequestFullscreen) {
+                    player.msRequestFullscreen();
+                } else if (player.mozRequestFullScreen) {
+                    player.mozRequestFullScreen();
+                } else if (player.webkitRequestFullscreen) {
+                    player.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+                } else if (player.webkitEnterFullscreen) {
+                    player.webkitEnterFullscreen();
+                } else {
+                    // Fallback to CSS-based fullscreen for devices without API support
+                    player.classList.add('fullscreen');
+                    document.addEventListener('keydown', exitFullscreenOnEscape);
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else {
+                    // CSS-based fullscreen exit
+                    exitCustomFullscreen();
                 }
             }
         }
-    </script>
-    <!-- Add Supabase Script -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Add VideoCache Script -->
-    <script src="videocache.js"></script>
-    <!-- Add TV Compatibility Script -->
-    <script src="tv-compatibility.js"></script>
-    <!-- Add Fullscreen Utilities Script -->
-    <script src="fullscreen-utils.js"></script>
-
-    <script>
+        
+        // Helper functions for custom fullscreen
+        function exitFullscreenOnEscape(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                exitCustomFullscreen();
+            }
+        }
+        
+        function exitCustomFullscreen() {
+            const player = document.getElementById('video-player');
+            player.classList.remove('fullscreen');
+            document.removeEventListener('keydown', exitFullscreenOnEscape);
+            
+            // Update button
+            const fullscreenBtn = document.querySelector('.fullscreen-btn');
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    </svg> Pantalla Completa`;
+            }
+        }
+        
+        // Detect TV devices on load and apply optimizations
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-detect TV device
+            const userAgent = navigator.userAgent.toLowerCase();
+            const tvPatterns = ['smart-tv', 'smarttv', 'television', 'webos', 'tizen', 'vidaa', 'netcast', 'hbbtv'];
+            const isTVUserAgent = tvPatterns.some(pattern => userAgent.includes(pattern));
+            const hasLargeScreen = window.screen.width >= 1280 && window.screen.height >= 720;
+            const hasTVInput = 'ontouchstart' in window === false && navigator.maxTouchPoints === 0;
+            
+            // Apply TV optimizations if needed
+            if (isTVUserAgent || (hasLargeScreen && hasTVInput)) {
+                document.documentElement.classList.add('tv-mode');
+                console.log('TV mode activated');
+                
+                // Ensure at least one item is focusable initially for TV navigation
+                setTimeout(() => {
+                    const firstChannel = document.querySelector('.lista-reproduccion li');
+                    if (firstChannel && document.activeElement === document.body) {
+                        firstChannel.focus();
+                    }
+                }, 1000);
+            }
+        });
+        
         const SUPABASE_URL = 'https://udaloepzgkgjvbyzkhmy.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYWxvZXB6Z2tnanZieXpraG15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA0NDk2NjYsImV4cCI6MjA1NjAyNTY2Nn0.VcY3iVmYTfb5V0wYoGY3HPyNHKwcrTjA55Lf_lE_NL8';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -650,5 +742,16 @@
 
         setupDevToolsDetection();
     </script>
+    <!-- Add Supabase Script -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Add VideoCache Script -->
+    <script src="videocache.js"></script>
+    <!-- Add TV Compatibility Script -->
+    <script src="tv-compatibility.js"></script>
+    <!-- Add Enhanced TV Support -->
+    <script src="tv-enhanced.js"></script>
+    <!-- Add Fullscreen Utilities Script -->
+    <script src="fullscreen-utils.js"></script>
+
 </body>
 </html>

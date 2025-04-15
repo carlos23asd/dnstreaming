@@ -81,12 +81,30 @@
           height: 70px;
           font-size: 1.4rem;
         }
+        /* Add special TV button hover/focus styles */
+        #login-container button:hover,
+        #login-container button:focus {
+          transform: scale(1.05);
+          box-shadow: 0 0 12px rgba(102, 126, 234, 0.8);
+        }
       }
       
       /* Focus styles for keyboard navigation */
       input:focus, button:focus {
         outline: 3px solid rgba(90, 103, 216, 0.5);
         box-shadow: 0 0 8px rgba(102, 126, 234, 0.6);
+      }
+
+      /* Add TV-specific styles to prevent popup issues */
+      .tv-mode input, .tv-mode button {
+        height: 70px !important;
+        font-size: 1.4rem !important;
+      }
+      
+      .tv-mode button:focus {
+        transform: scale(1.05);
+        box-shadow: 0 0 12px rgba(102, 126, 234, 0.8);
+        outline: 3px solid #667eea;
       }
     </style>
   </head>
@@ -111,9 +129,14 @@
 
       // Verificar si el usuario ya inició sesión y redirigir automáticamente a index2.html
       (async () => {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          if (session) {
-              window.location.href = 'index2.html';
+          try {
+              const { data: { session } } = await supabaseClient.auth.getSession();
+              if (session) {
+                  window.location.href = 'index2.html';
+              }
+          } catch (error) {
+              console.error("Error al verificar sesión:", error);
+              // No redirigir en caso de error para prevenir ciclos de redirección
           }
       })();
 
@@ -158,9 +181,28 @@
           loginButton.textContent = 'Ingresar';
         }
       });
+
+      // Detección automática de TV y aplicación de optimizaciones
+      function detectTVDevice() {
+          const userAgent = navigator.userAgent.toLowerCase();
+          const tvPatterns = ['smart-tv', 'smarttv', 'television', 'webos', 'tizen', 'vidaa', 'hbbtv'];
+          const isTVUserAgent = tvPatterns.some(pattern => userAgent.includes(pattern));
+          const hasLargeScreen = window.screen.width >= 1280 && window.screen.height >= 720;
+          const hasTVInput = 'ontouchstart' in window === false && navigator.maxTouchPoints === 0;
+          
+          if (isTVUserAgent || (hasLargeScreen && hasTVInput)) {
+              document.documentElement.classList.add('tv-mode');
+              console.log('TV mode activated');
+          }
+      }
+      
+      // Apply TV detection on load
+      detectTVDevice();
     </script>
     <!-- Add TV Compatibility Script -->
     <script src="tv-compatibility.js"></script>
+    <!-- Add Enhanced TV Support -->
+    <script src="tv-enhanced.js"></script>
     <!-- Add Fullscreen Utilities Script -->
     <script src="fullscreen-utils.js"></script>
   </body>

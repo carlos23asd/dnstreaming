@@ -433,83 +433,39 @@
 
         let hls;
         let canalSeleccionado = null;
-        
-        // Memory optimization - release player memory when not in view
-        let isPlayerVisible = true;
-        
+
         // Add tabindex to make list items focusable
         document.querySelectorAll('.lista-reproduccion li').forEach(item => {
             item.setAttribute('tabindex', '0');
         });
 
-        // Configure HLS.js for lower memory usage
+        // Configure HLS.js for optimal performance
         const hlsConfig = {
-            maxBufferLength: 30,          // Reduced buffer length to save memory
-            maxMaxBufferLength: 30,       // Lower maximum buffer size
-            maxBufferSize: 60 * 1000 * 1000, // 60MB maximum buffer size
-            maxBufferHole: 0.5,          
-            lowLatencyMode: false,        // Disable low latency mode to reduce processing
-            backBufferLength: 30,         
-            enableWorker: true,           // Enable web worker for better performance
-            startLevel: -1,              
-            fragLoadPolicy: {
-                default: {
-                    maxRetry: 2,          // Reduce retry attempts to save resources
-                    retryDelayMs: 1000,   // Longer delay between retries to reduce load
-                    maxRetryDelayMs: 8000
-                }
-            },
-            testBandwidth: false,         // Disable bandwidth testing to save resources
+            maxBufferLength: 30,          // Reduce buffer length to save bandwidth
+            maxMaxBufferLength: 60,       // Maximum buffer size
+            maxBufferSize: 2 * 1000 * 1000, // 2MB maximum buffer size
+            maxBufferHole: 0.5,          // Reduce hole jump threshold
+            lowLatencyMode: true,        // Enable low latency mode
+            backBufferLength: 30,        // Reduce back buffer length
+            enableWorker: true,          // Enable web worker for better performance
+            startLevel: -1,              // Let HLS.js choose the optimal quality
+            initialLiveManifestSize: 1,  // Start playback faster
+            abrEwmaDefaultEstimate: 500000, // Start with lower bandwidth estimate
+            abrBandWidthFactor: 0.8,     // Aggressive bandwidth optimization
+            abrBandWidthUpFactor: 0.7,
+            abrMaxWithRealBitrate: true,
+            liveSyncDurationCount: 3,    // Reduce live sync window
+            enableSoftwareAES: true,     // Better compatibility with older browsers
             progressive: true,
-            lowMemoryMode: true,          // Enable low memory mode
-            // Clean up resources sooner when segments not needed
-            fragLoadingMaxRetry: 2,
-            levelLoadingMaxRetry: 2,
-            manifestLoadingMaxRetry: 2,
+            testBandwidth: true,
             xhrSetup: function(xhr) {
                 xhr.withCredentials = false; // Avoid CORS issues
-            }
+            },
+            fragLoadingTimeOut: 60000,   // 60 seconds timeout for fragment loading
+            manifestLoadingTimeOut: 30000, // 30 seconds timeout for manifest loading
+            levelLoadingTimeOut: 30000    // 30 seconds timeout for level loading
         };
 
-        // Implement memory management for the video player
-        function optimizePlayerMemory() {
-            // Reduce DOM updates when player is not in view
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    isPlayerVisible = entry.isIntersecting;
-                    if (!isPlayerVisible && hls) {
-                        // Reduce quality when not in view to save memory
-                        hls.autoLevelCapping = 0; // Lowest quality when not visible
-                    } else if (isPlayerVisible && hls) {
-                        hls.autoLevelCapping = -1; // Auto quality when visible
-                    }
-                });
-            }, { threshold: 0.1 });
-            
-            if (videoPlayer) observer.observe(videoPlayer);
-            
-            // Periodically force garbage collection by nullifying references
-            setInterval(() => {
-                if (hls && !videoPlayer.paused) {
-                    const currentTime = videoPlayer.currentTime;
-                    // Clean old buffer data
-                    if (currentTime > 30) {
-                        try {
-                            hls.trigger(Hls.Events.BUFFER_FLUSHING, { 
-                                startOffset: 0, 
-                                endOffset: currentTime - 30 
-                            });
-                        } catch (e) {
-                            console.warn('Memory cleanup error:', e);
-                        }
-                    }
-                }
-            }, 30000); // Run every 30 seconds
-        }
-
-        // Initialize memory optimization
-        optimizePlayerMemory();
-        
         // Enable keyboard navigation for channel selection
         listaReproduccion.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -533,16 +489,8 @@
                     e.target.classList.add('seleccionado');
                     canalSeleccionado = e.target;
 
-                    // Clean up previous instance to free memory
                     if (hls) {
-                        hls.stopLoad();
-                        hls.detachMedia();
                         hls.destroy();
-                        hls = null;
-                        
-                        // Force garbage collection
-                        videoPlayer.src = '';
-                        videoPlayer.load();
                     }
 
                     streamStatus.className = 'stream-status waiting';
@@ -564,9 +512,6 @@
                         }
                         
                         hls.currentLevel = bestLevel; // Force initial quality level
-                        
-                        // Set memory-efficient quality cap
-                        hls.autoLevelCapping = Math.min(bestLevel + 1, availableLevels.length - 1);
                     });
 
                     hls.on(Hls.Events.MANIFEST_LOADED, () => {
@@ -644,7 +589,7 @@
                 // Use replace instead of href to avoid popup blockers
                 window.location.replace('index.html');
             }
-        });
+        })();
         
         // Add TV-specific initialization
         document.addEventListener('DOMContentLoaded', function() {

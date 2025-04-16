@@ -92,8 +92,8 @@ class VideoCache {
     async storeSegment(url, data) {
         if (!this.enabled || !this.db || !data) return;
         
-        // Skip storing if data is too large - lower threshold to save memory
-        if (data.byteLength > 1 * 1024 * 1024) return;
+        // Skip storing if data is too large
+        if (data.byteLength > 2 * 1024 * 1024) return;
         
         try {
             const transaction = this.db.transaction(['segments'], 'readwrite');
@@ -110,6 +110,7 @@ class VideoCache {
             
             transaction.oncomplete = () => {
                 this.cacheSize += data.byteLength;
+                //console.log(`Stored segment: ${url} (${(data.byteLength/1024).toFixed(1)}KB)`);
             };
         } catch (e) {
             console.error('Error storing segment:', e);
@@ -119,14 +120,13 @@ class VideoCache {
     async maintainCacheSize() {
         if (!this.enabled || !this.db) return;
         
-        // Reduced cache size to minimize memory usage
-        if (this.cacheSize > this.maxCacheSize * 0.8) {
+        if (this.cacheSize > this.maxCacheSize) {
             const transaction = this.db.transaction(['segments'], 'readwrite');
             const store = transaction.objectStore('segments');
             const request = store.openCursor();
             
             let deletedSize = 0;
-            const targetDeleteSize = this.cacheSize - (this.maxCacheSize * 0.5);
+            const targetDeleteSize = this.cacheSize - (this.maxCacheSize * 0.7);
             
             request.onsuccess = (event) => {
                 const cursor = event.target.result;
@@ -161,6 +161,18 @@ class VideoCache {
     // Set up HLS.js with the cache
     setupHlsWithCache(hls) {
         if (!this.enabled) return;
+        
+        // Set up memory garbage collection timer
+        const memoryManager = setInterval(() => {
+            if (hls) {
+                // Force garbage collection of old buffer data
+                hls.trigger(Hls.Events.BUFFER_FLUSHING, { startOffset: 0, endOffset: hls.media.currentTime - 30 });
+            }
+        }, 30000); // Run every 30 seconds
+        
+        hls.on(Hls.Events.DESTROYING, () => {
+            clearInterval(memoryManager);
+        });
         
         // Override the HLS loader to use our cache
         const videoCache = this;
@@ -231,28 +243,31 @@ class VideoCache {
 // Enhanced HLS Config for higher bandwidth usage and quality
 function getEnhancedHlsConfig() {
     return {
-        maxBufferLength: 20,          // Reduced buffer length to save memory
-        maxMaxBufferLength: 30,       // Reduced maximum buffer size
+        maxBufferLength: 40,          // Increased buffer length for smoother playback
+        maxMaxBufferLength: 60,       // Maximum buffer size
         maxBufferSize: 8 * 1024 * 1024, // 8MB maximum buffer size (reduced from 15MB)
-        maxBufferHole: 0.5,           
-        lowLatencyMode: false,        // Disabled to reduce processing
-        backBufferLength: 10,         // Reduced back buffer length
-        enableWorker: true,           
-        startLevel: -1,               
-        initialLiveManifestSize: 1,   
-        // More efficient bandwidth factors for memory optimization
-        abrEwmaDefaultEstimate: 2000000, // Lower bandwidth estimate (2mbps)
-        abrBandWidthFactor: 0.75,     // More conservative bandwidth usage
-        abrBandWidthUpFactor: 0.7,   
-        abrMaxWithRealBitrate: true,  
-        liveSyncDurationCount: 2,     // Reduced live sync window
-        testBandwidth: false,         // Disabled to save resources
-        progressive: true,            
-        lowMemoryMode: true,          // Enable low memory mode
-        // Shorter timeouts to avoid hanging resources
-        fragLoadingTimeOut: 15000,    // 15 seconds timeout
-        manifestLoadingTimeOut: 8000, // 8 seconds timeout
-        levelLoadingTimeOut: 8000     // 8 seconds timeout
+        maxBufferHole: 0.5,           // Reduce hole jump threshold
+        lowLatencyMode: true,         // Enable low latency mode
+        backBufferLength: 15,         // Reduced back buffer length (from 30)
+        enableWorker: true,           // Enable web worker for better performance
+        startLevel: -1,               // Let HLS.js choose the optimal quality
+        initialLiveManifestSize: 1,   // Start playback faster
+        // Memory-optimized bandwidth factors 
+        abrEwmaDefaultEstimate: 2000000, // Start with moderate bandwidth estimate (2mbps)
+        abrBandWidthFactor: 0.9,      // Slightly reduced bandwidth factor
+        abrBandWidthUpFactor: 0.8,    // Slightly reduced up factor
+        abrMaxWithRealBitrate: true,  // Use actual measured bitrate
+        liveSyncDurationCount: 2,     // Reduced live sync window (from 3)
+        testBandwidth: true,          // Actively test available bandwidth
+        progressive: true,            // Enable progressive downloading
+        // Fragloader memory options
+        fragLoadingMaxRetry: 2,       // Limit retry attempts to save memory
+        manifestLoadingMaxRetry: 1,   // Limit manifest retry attempts
+        levelLoadingMaxRetry: 2,      // Limit level retry attempts
+        // Timeouts remain the same
+        fragLoadingTimeOut: 20000,    // 20 seconds timeout for fragment loading
+        manifestLoadingTimeOut: 10000, // 10 seconds timeout for manifest loading
+        levelLoadingTimeOut: 10000    // 10 seconds timeout for level loading
     };
 }
 

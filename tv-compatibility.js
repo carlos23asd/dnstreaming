@@ -30,12 +30,11 @@ function setupTVCompatibility() {
 function detectTVDevice() {
     const userAgent = navigator.userAgent.toLowerCase();
     
-    // Check common TV and set-top box identifiers (expanded list)
+    // Check common TV and set-top box identifiers
     const tvPatterns = [
         'smart-tv', 'smarttv', 'googletv', 'appletv', 'hbbtv', 'roku', 
         'viera', 'netcast', 'nettv', 'webos', 'tizen', 'android tv', 
-        'vidaa', 'playstation', 'xbox', 'television', 'tv_', 'philips', 
-        'panasonic', 'samsung', 'lg tv', 'sony', 'sharp', 'opera tv'
+        'vidaa', 'playstation', 'xbox'
     ];
     
     // Check for TV user agents
@@ -49,26 +48,14 @@ function detectTVDevice() {
                       ('maxTouchPoints' in navigator) && 
                       navigator.maxTouchPoints === 0;
     
-    // Additional checks for common TV platforms
-    const hasTVPlatform = typeof window.tizen !== 'undefined' || 
-                          typeof window.webOS !== 'undefined' ||
-                          typeof window.PalmSystem !== 'undefined';
-    
-    const isTV = isTVUserAgent || hasTVPlatform || (hasLargeScreen && hasTVInput);
-    
-    if (isTV) {
-        // Apply TV class immediately
-        document.documentElement.classList.add('tv-mode');
-    }
-    
-    return isTV;
+    return isTVUserAgent || (hasLargeScreen && hasTVInput);
 }
 
 function applyTVOptimizations() {
     // Increase size of UI elements for TV viewing distance
     document.documentElement.classList.add('tv-mode');
     
-    // Optimize video player for TV (no popups needed)
+    // Optimize video player for TV
     const videoPlayer = document.getElementById('video-player');
     if (videoPlayer) {
         // Increase buffer size for better TV playback
@@ -77,21 +64,14 @@ function applyTVOptimizations() {
             window.hls.config.maxMaxBufferLength = 90;
         }
         
-        // Enable custom fullscreen that doesn't require popups
-        videoPlayer.addEventListener('dblclick', function() {
-            if (window.fullscreenUtils && window.fullscreenUtils.toggle) {
-                window.fullscreenUtils.toggle(videoPlayer);
-            }
-        });
+        // Enable picture-in-picture for TVs that support it
+        if (videoPlayer.requestPictureInPicture && document.pictureInPictureEnabled) {
+            videoPlayer.setAttribute('disablePictureInPicture', false);
+        }
         
         // Apply TV-specific styling
         videoPlayer.classList.add('tv-optimized');
     }
-    
-    // Ensure menu items are properly focusable with remote
-    document.querySelectorAll('.lista-reproduccion li').forEach(item => {
-        item.setAttribute('tabindex', '0');
-    });
 }
 
 function applyCrossBrowserFixes() {
@@ -252,6 +232,11 @@ function navigateFocus(direction) {
             prevElement.focus();
         }
     }
+}
+
+function toggleFullscreen(element) {
+    // Remove this function as it's being moved to fullscreen-utils.js
+    // This function has been moved to fullscreen-utils.js
 }
 
 // Export functions for global use

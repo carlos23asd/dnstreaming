@@ -129,20 +129,6 @@ function requestFullscreen(element) {
             console.warn('WebOS TV fullscreen failed', e);
         }
     }
-    // CSS-based fallback for TVs without API support (no popup needed)
-    else {
-        element.classList.add('fullscreen');
-        document.body.classList.add('player-fullscreen');
-        
-        // Add escape key listener
-        document.addEventListener('keydown', function tvFullscreenExit(e) {
-            if (e.key === 'Escape' || e.keyCode === 27) {
-                element.classList.remove('fullscreen');
-                document.body.classList.remove('player-fullscreen');
-                document.removeEventListener('keydown', tvFullscreenExit);
-            }
-        });
-    }
 }
 
 function exitFullscreen() {
